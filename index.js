@@ -13,10 +13,9 @@ const client = new Client({
 let connections = new Map();
 let players = new Map();
 
-client.once('clientReady', () => {
+client.once('ready', () => { // صححت الاسم هنا
     console.log(`Logged in as ${client.user.tag}`);
 
-    // عند التشغيل: ادخل كل القنوات اللي فيها أعضاء حقيقيين
     client.guilds.cache.forEach(guild => {
         guild.channels.cache
             .filter(c => c.isVoiceBased() && c.members.some(m => !m.user.bot))
@@ -24,25 +23,22 @@ client.once('clientReady', () => {
                 const connection = joinVoiceChannel({
                     channelId: channel.id,
                     guildId: guild.id,
-                    adapterCreator: channel.guild.voiceAdapterCreator
+                    adapterCreator: guild.voiceAdapterCreator
                 });
-                connections.set(channel.guild.id, connection);
+                connections.set(guild.id, connection);
 
                 const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
                 connection.subscribe(player);
-                players.set(channel.guild.id, player);
+                players.set(guild.id, player);
             });
     });
 });
 
-// حدث دخول وخروج الأعضاء
 client.on('voiceStateUpdate', (oldState, newState) => {
-    // دخول عضو حقيقي
     if (!oldState.channel && newState.channel && !newState.member.user.bot) {
         announceVoice(newState, 'joined');
     }
-    // خروج عضو حقيقي
-    if (oldState.channel && !newState.channel && !oldState.member.user.bot) {
+    if (oldState.channel && !newState.channel && !newState.member.user.bot) {
         announceVoice(oldState, 'left');
     }
 });
@@ -55,10 +51,9 @@ function announceVoice(state, action) {
     let connection = connections.get(guildId);
     let player = players.get(guildId);
 
-    // لو Connection غير موجود: ادخل القناة اللي فيها الأعضاء الحقيقيين
     if (!connection) {
         const channel = state.guild.channels.cache.find(c => c.isVoiceBased() && c.members.some(m => !m.user.bot));
-        if (!channel) return; // ما فيش قناة فيها ناس
+        if (!channel) return;
         connection = joinVoiceChannel({
             channelId: channel.id,
             guildId: guildId,
@@ -67,7 +62,6 @@ function announceVoice(state, action) {
         connections.set(guildId, connection);
     }
 
-    // لو Player غير موجود
     if (!player) {
         player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
         connection.subscribe(player);
