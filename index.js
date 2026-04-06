@@ -13,7 +13,7 @@ const client = new Client({
 let connections = new Map();
 let players = new Map();
 
-client.once('ready', () => { // صححت الاسم هنا
+client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
 
     client.guilds.cache.forEach(guild => {
@@ -23,11 +23,20 @@ client.once('ready', () => { // صححت الاسم هنا
                 const connection = joinVoiceChannel({
                     channelId: channel.id,
                     guildId: guild.id,
-                    adapterCreator: guild.voiceAdapterCreator
+                    adapterCreator: guild.voiceAdapterCreator,
+                    selfDeaf: false
                 });
+
                 connections.set(guild.id, connection);
 
-                const player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+                const player = createAudioPlayer({
+                    behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
+                });
+
+                player.on('error', error => {
+                    console.error('Audio error:', error);
+                });
+
                 connection.subscribe(player);
                 players.set(guild.id, player);
             });
@@ -54,25 +63,49 @@ function announceVoice(state, action) {
     if (!connection) {
         const channel = state.guild.channels.cache.find(c => c.isVoiceBased() && c.members.some(m => !m.user.bot));
         if (!channel) return;
+
         connection = joinVoiceChannel({
             channelId: channel.id,
             guildId: guildId,
-            adapterCreator: state.guild.voiceAdapterCreator
+            adapterCreator: state.guild.voiceAdapterCreator,
+            selfDeaf: false
         });
+
         connections.set(guildId, connection);
     }
 
     if (!player) {
-        player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Pause } });
+        player = createAudioPlayer({
+            behaviors: { noSubscriber: NoSubscriberBehavior.Pause }
+        });
+
+        player.on('error', error => {
+            console.error('Audio error:', error);
+        });
+
         connection.subscribe(player);
         players.set(guildId, player);
     }
 
     const filePath = `./voice-${guildId}.mp3`;
-    const gtts = new gTTS(text, 'en');
-    gtts.save(filePath, function() {
-        const resource = createAudioResource(filePath);
-        player.play(resource);
+    const tts = new gTTS(text, 'en');
+
+    tts.save(filePath, function(err) {
+        if (err) {
+            console.error('TTS error:', err);
+            return;
+        }
+
+        try {
+            const resource = createAudioResource(filePath);
+
+            setTimeout(() => {
+                player.play(resource);
+            }, 500);
+
+        } catch (e) {
+            console.error('Play error:', e);
+        }
     });
 }
 
